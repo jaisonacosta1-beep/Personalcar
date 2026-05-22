@@ -1303,9 +1303,59 @@ async function borrarTodasImagenesChecklist() {
     }
 }
 
-async function verificarFacturacionDiaria(){const sysRef=db.collection('sistema').doc('estado');const doc=await sysRef.get();const hoy=new Date().toLocaleDateString();if(!doc.exists||doc.data().ultima_facturacion!==hoy){await sysRef.set({ultima_facturacion:hoy},{merge:true});appData.conductores.forEach(async(c)=>{if(c.auto_asignado&&c.auto_asignado!=="Ninguno"){const auto=appData.vehiculos.find(v=>v.placa===c.auto_asignado);const tarifa=auto&&auto.tarifa?Number(auto.tarifa):25;const nuevaDeuda=(Number(c.deuda)||0)+tarifa;await db.collection('conductores').doc(c.id).update({deuda:nuevaDeuda});}});console.log("Sistema: Facturación automática ejecutada.");}}
+async function verificarFacturacionDiaria() {
+    const sysRef = db.collection('sistema').doc('estado');
+    const doc = await sysRef.get();
+    
+    // Generar una fecha universal y estandarizada (Ej: 2026-05-22)
+    const d = new Date();
+    const hoy = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    
+    if (!doc.exists || doc.data().ultima_facturacion !== hoy) {
+        // 1. Guardar la fecha inmediatamente para evitar bloqueos
+        await sysRef.set({ ultima_facturacion: hoy }, { merge: true });
+        
+        // 2. Ejecutar los cobros
+        appData.conductores.forEach(async (c) => {
+            if (c.auto_asignado && c.auto_asignado !== "Ninguno") {
+                const auto = appData.vehiculos.find(v => v.placa === c.auto_asignado);
+                const tarifa = auto && auto.tarifa ? Number(auto.tarifa) : 25;
+                const nuevaDeuda = (Number(c.deuda) || 0) + tarifa;
+                await db.collection('conductores').doc(c.id).update({ deuda: nuevaDeuda });
+            }
+        });
+        console.log("Sistema: Facturación automática ejecutada para el día " + hoy);
+    }
+}
 
-async function forzarFacturacionDiaria(){const sysRef=db.collection('sistema').doc('estado');const doc=await sysRef.get();const hoy=new Date().toLocaleDateString();if(doc.exists&&doc.data().ultima_facturacion===hoy){if(!confirm("⚠️ ALERTA: El sistema detecta que YA SE REALIZÓ EL CARGO DIARIO para el día de hoy.\n¿Estás seguro de que deseas duplicar la deuda?"))return;}else{if(!confirm("¿Deseas aplicar el cobro diario a todos los conductores con auto asignado AHORA?"))return;}let conteo=0;for(let c of appData.conductores){if(c.auto_asignado&&c.auto_asignado!=="Ninguno"){const auto=appData.vehiculos.find(v=>v.placa===c.auto_asignado);const tarifa=auto&&auto.tarifa?Number(auto.tarifa):25;const nuevaDeuda=(Number(c.deuda)||0)+tarifa;await db.collection('conductores').doc(c.id).update({deuda:nuevaDeuda});conteo++;}}await sysRef.set({ultima_facturacion:hoy},{merge:true});mostrarExito(`Cobro diario aplicado a ${conteo} conductores.`);}
+async function forzarFacturacionDiaria() {
+    const sysRef = db.collection('sistema').doc('estado');
+    const doc = await sysRef.get();
+    
+    // Generar la misma fecha universal
+    const d = new Date();
+    const hoy = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    
+    if (doc.exists && doc.data().ultima_facturacion === hoy) {
+        if (!confirm("⚠️ ALERTA: El sistema detecta que YA SE REALIZÓ EL CARGO DIARIO para el día de hoy.\n¿Estás seguro de que deseas duplicar la deuda?")) return;
+    } else {
+        if (!confirm("¿Deseas aplicar el cobro diario a todos los conductores con auto asignado AHORA?")) return;
+    }
+    
+    let conteo = 0;
+    for (let c of appData.conductores) {
+        if (c.auto_asignado && c.auto_asignado !== "Ninguno") {
+            const auto = appData.vehiculos.find(v => v.placa === c.auto_asignado);
+            const tarifa = auto && auto.tarifa ? Number(auto.tarifa) : 25;
+            const nuevaDeuda = (Number(c.deuda) || 0) + tarifa;
+            await db.collection('conductores').doc(c.id).update({ deuda: nuevaDeuda });
+            conteo++;
+        }
+    }
+    await sysRef.set({ ultima_facturacion: hoy }, { merge: true });
+    mostrarExito(`Cobro diario aplicado a ${conteo} conductores.`);
+}
+
 
 async function guardarConfig(e){e.preventDefault();try{let config={desc:document.getElementById('conf-desc').value,titulo:document.getElementById('conf-titulo').value,tgToken:document.getElementById('conf-tg-token').value,tgChat:document.getElementById('conf-tg-chat').value};const f=document.getElementById('conf-logo');if(f.files.length>0)config.logo=await subirImagen(f);await db.collection('sistema').doc('config_portal').set(config,{merge:true});mostrarExito("Configuración y Logos actualizados.");}catch(err){mostrarError(err.message);}}
 
